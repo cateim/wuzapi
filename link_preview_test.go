@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store"
@@ -228,5 +229,33 @@ func TestSendMessageRejectsInvalidLinkPreviewImageHTTPAndStdio(t *testing.T) {
 	rpcError := assertJSONRPC20Error(t, rpc, "invalid-preview-image", float64(http.StatusBadRequest))
 	if message, _ := rpcError["message"].(string); !strings.Contains(message, "LinkPreviewImage") {
 		t.Fatalf("stdio: unexpected error %v", rpcError)
+	}
+}
+
+// The caller's image is decoded under the same per-user limit as the page lookup:
+// with every slot taken the request waits, gives up when the context ends, and
+// never fetches the image.
+func TestResolveLinkPreviewOverrideImageHonorsThePerUserLimit(t *testing.T) {
+	site := newPreviewSite(t)
+	pool := userSemaphoreManager.ForUser("busy-user")
+	for i := 0; i < cap(pool); i++ {
+		pool <- struct{}{}
+	}
+	t.Cleanup(func() {
+		for len(pool) > 0 {
+			<-pool
+		}
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	got := resolveLinkPreview(ctx, site.productURL(), "busy-user", linkPreviewOverride{
+		Title: "Our title", Image: site.server.URL + "/custom.png",
+	})
+	if got.Title != "Our title" || len(got.HQImageData) != 0 {
+		t.Fatalf("unexpected result while the user pool is full: %+v", got)
+	}
+	if site.custom.Load() != 0 {
+		t.Fatal("custom image fetched without a free slot")
 	}
 }

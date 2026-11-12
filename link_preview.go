@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"runtime/debug"
 	"strings"
 
 	"github.com/rs/zerolog/log"
@@ -54,7 +55,7 @@ func resolveLinkPreview(ctx context.Context, urlStr, userID string, override lin
 	}
 
 	if override.Image != "" {
-		applyOverrideImage(ctx, override.Image, &result)
+		applyOverrideImage(ctx, userID, override.Image, &result)
 	}
 	if len(result.HQImageData) == 0 {
 		// The caller's image is missing or unusable: a card without a picture is
@@ -70,9 +71,30 @@ func resolveLinkPreview(ctx context.Context, urlStr, userID string, override lin
 
 // applyOverrideImage loads the caller's image and builds the thumbnails. A failure
 // is logged and leaves result without an image, so the page's image can take over.
-func applyOverrideImage(ctx context.Context, value string, result *openGraphResult) {
+// It runs under the same per-user limit and panic guard as the page lookup, since
+// decoding and resizing a large image is the expensive part.
+func applyOverrideImage(ctx context.Context, userID, value string, result *openGraphResult) {
 	ctx, cancel := context.WithTimeout(ctx, openGraphFetchTimeout)
 	defer cancel()
+
+	userPool := userSemaphoreManager.ForUser(userID)
+	select {
+	case userPool <- struct{}{}:
+		defer func() { <-userPool }()
+	case <-ctx.Done():
+		log.Warn().Msg("Link preview image skipped while waiting for a worker")
+		return
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Error().
+				Interface("panic_info", r).
+				Bytes("stack", debug.Stack()).
+				Msg("Panic recovered while building the link preview image")
+			*result = openGraphResult{Title: result.Title, Description: result.Description}
+		}
+	}()
 
 	imgBytes, err := readPreviewImage(ctx, value)
 	if err != nil {
