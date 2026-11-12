@@ -855,9 +855,15 @@ func fetchOpenGraphImage(ctx context.Context, pageURL *url.URL, imageURLStr stri
 		return
 	}
 
+	applyOpenGraphImage(imgBytes, resolvedImageURL, result)
+}
+
+// applyOpenGraphImage decodes imgBytes and fills the inline and large-card
+// thumbnails of result. source only labels the log lines.
+func applyOpenGraphImage(imgBytes []byte, source string, result *openGraphResult) {
 	imgConfig, _, err := image.DecodeConfig(bytes.NewReader(imgBytes))
 	if err != nil {
-		log.Warn().Err(err).Str("imageURL", resolvedImageURL).Msg("Failed to decode Open Graph image config")
+		log.Warn().Err(err).Str("imageURL", source).Msg("Failed to decode Open Graph image config")
 		return
 	}
 
@@ -865,14 +871,14 @@ func fetchOpenGraphImage(ctx context.Context, pageURL *url.URL, imageURLStr stri
 		log.Warn().
 			Int("width", imgConfig.Width).
 			Int("height", imgConfig.Height).
-			Str("imageURL", resolvedImageURL).
+			Str("imageURL", source).
 			Msg("Open Graph image dimensions too large")
 		return
 	}
 
 	img, _, err := image.Decode(bytes.NewReader(imgBytes))
 	if err != nil {
-		log.Warn().Err(err).Str("imageURL", resolvedImageURL).Msg("Failed to decode Open Graph image")
+		log.Warn().Err(err).Str("imageURL", source).Msg("Failed to decode Open Graph image")
 		return
 	}
 

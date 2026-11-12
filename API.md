@@ -1031,6 +1031,13 @@ Example sending a new message with link preview
 curl -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"Phone":"5491155554444","Body":"Check my site? https://example.com", "Id": "90B2F8B13FAC8A9CF6B06E99C7834DC5","LinkPreview": true}' http://localhost:8080/chat/send/text
 ```
 
+By default the preview takes its title, description and image from the Open Graph tags of the first link in `Body`. With `LinkPreview` set to true you can replace any of them with `LinkPreviewTitle`, `LinkPreviewDescription` and `LinkPreviewImage` (an http(s) URL or a `data:image/...;base64,` URL). Fields you leave out still come from the page, which is only fetched when the title or the image is missing; if the supplied image cannot be loaded, the page image is used instead. These fields are ignored when `LinkPreview` is false.
+
+Example sending a message with a custom link preview
+```
+curl -X POST -H 'Token: 1234ABCD' -H 'Content-Type: application/json' --data '{"Phone":"5491155554444","Body":"Check my site? https://example.com","LinkPreview": true,"LinkPreviewTitle":"My site","LinkPreviewImage":"https://example.com/cover.jpg"}' http://localhost:8080/chat/send/text
+```
+
 Example replying to some message:
 
 ```

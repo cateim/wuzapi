@@ -4110,6 +4110,18 @@ definitions:
         type: boolean
         description: "Set to true to enable link preview generation (default is false)"
         example: true
+      LinkPreviewTitle:
+        type: string
+        description: "Optional. Replaces the title of the link preview. Only used when LinkPreview is true; when omitted the title comes from the page's Open Graph tags."
+        example: "My site"
+      LinkPreviewDescription:
+        type: string
+        description: "Optional. Replaces the description of the link preview. Only used when LinkPreview is true; when omitted the description comes from the page's Open Graph tags (the page is not fetched if both title and image are supplied)."
+        example: "The best site"
+      LinkPreviewImage:
+        type: string
+        description: "Optional. Image of the link preview, as an http(s) URL or a data:image/...;base64 URL. Only used when LinkPreview is true; when omitted or unusable the image comes from the page's Open Graph tags."
+        example: "https://example.com/cover.jpg"
       Id:
         type: string
         example: "ABCDABCD1234"
