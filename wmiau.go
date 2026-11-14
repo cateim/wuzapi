@@ -1031,7 +1031,7 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 			}
 		}
 
-		if !*skipMedia {
+		if !*skipMedia && !isStatusChat(evt.Info.Chat) {
 
 			isIncoming := !evt.Info.IsFromMe
 			chatJID := evt.Info.Sender.String()
