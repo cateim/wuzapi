@@ -32,6 +32,24 @@ func validateLinkPreviewImage(value string) error {
 	return errors.New("invalid LinkPreviewImage: expected an http(s) URL or a data:image/...;base64 URL")
 }
 
+// pickLinkPreviewURL returns the URL the preview card is built for. Without a
+// caller choice it is the first URL found in body. A requested URL has to be an
+// http(s) URL that appears in body, so the card never opens something the
+// message does not show. This lets a message that carries several links (for
+// example a coupon and a product) preview the one that matters.
+func pickLinkPreviewURL(body, requested string) (string, error) {
+	if requested == "" {
+		return extractFirstURL(body), nil
+	}
+	if !isHTTPURL(requested) {
+		return "", errors.New("invalid LinkPreviewURL: expected an http(s) URL")
+	}
+	if !strings.Contains(body, requested) {
+		return "", errors.New("invalid LinkPreviewURL: the URL must appear in Body")
+	}
+	return requested, nil
+}
+
 // resolveLinkPreview returns the preview data for urlStr. Without overrides it is
 // the plain Open Graph lookup. With overrides, the page is only fetched when the
 // title or the image is missing, and any field the caller set wins over the page.

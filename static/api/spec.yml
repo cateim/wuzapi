@@ -4122,6 +4122,10 @@ definitions:
         type: string
         description: "Optional. Image of the link preview, as an http(s) URL or a data:image/...;base64 URL. Only used when LinkPreview is true; when omitted or unusable the image comes from the page's Open Graph tags."
         example: "https://example.com/cover.jpg"
+      LinkPreviewURL:
+        type: string
+        description: "Optional. The link the preview is built for, when Body carries several links. It must be an http(s) URL that appears in Body; when omitted the first link in Body is used. Only used when LinkPreview is true."
+        example: "https://example.com/product"
       Id:
         type: string
         example: "ABCDABCD1234"

@@ -2772,6 +2772,7 @@ func (s *server) SendMessage() http.HandlerFunc {
 		LinkPreviewTitle       string
 		LinkPreviewDescription string
 		LinkPreviewImage       string
+		LinkPreviewURL         string
 		Id                     string
 		ContextInfo            waE2E.ContextInfo
 		MentionAll             bool
@@ -2805,6 +2806,11 @@ func (s *server) SendMessage() http.HandlerFunc {
 			s.Respond(w, r, http.StatusBadRequest, err)
 			return
 		}
+		previewURL, err := pickLinkPreviewURL(t.Body, t.LinkPreviewURL)
+		if err != nil {
+			s.Respond(w, r, http.StatusBadRequest, err)
+			return
+		}
 		recipient, err := validateMessageFields(r.Context(), clientManager.GetWhatsmeowClient(txtid), t.Phone, t.ContextInfo.StanzaID, t.ContextInfo.Participant)
 		if err != nil {
 			log.Error().Msg(fmt.Sprintf("%s", err))
@@ -2821,7 +2827,7 @@ func (s *server) SendMessage() http.HandlerFunc {
 			og  openGraphResult
 		)
 		if t.LinkPreview {
-			url = extractFirstURL(t.Body)
+			url = previewURL
 			if url != "" {
 				og = resolveLinkPreview(r.Context(), url, txtid, linkPreviewOverride{
 					Title:       t.LinkPreviewTitle,

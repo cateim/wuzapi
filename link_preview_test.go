@@ -259,3 +259,73 @@ func TestResolveLinkPreviewOverrideImageHonorsThePerUserLimit(t *testing.T) {
 		t.Fatal("custom image fetched without a free slot")
 	}
 }
+
+func TestPickLinkPreviewURL(t *testing.T) {
+	const coupon, product = "https://s.shopee.com.br/COUPON", "https://s.shopee.com.br/PRODUCT"
+	body := "Ative o cupom: " + coupon + "\nProduto: " + product
+
+	got, err := pickLinkPreviewURL(body, "")
+	if err != nil || got != coupon {
+		t.Fatalf("without a choice the first URL is used: got %q, %v", got, err)
+	}
+	got, err = pickLinkPreviewURL(body, product)
+	if err != nil || got != product {
+		t.Fatalf("requested URL not used: got %q, %v", got, err)
+	}
+	if got, err = pickLinkPreviewURL("no links here", ""); err != nil || got != "" {
+		t.Fatalf("a body without links gives no URL: got %q, %v", got, err)
+	}
+	for _, bad := range []string{"ftp://example.com/a", "not a url", "https://elsewhere.example.com/x"} {
+		if _, err := pickLinkPreviewURL(body, bad); err == nil {
+			t.Errorf("%q accepted", bad)
+		}
+	}
+}
+
+// The preview follows LinkPreviewURL even when another link comes first in Body.
+func TestResolveLinkPreviewForTheRequestedLinkNotTheFirst(t *testing.T) {
+	site := newPreviewSite(t)
+	body := "Cupom: https://coupon.invalid/x\nProduto: " + site.productURL()
+	url, err := pickLinkPreviewURL(body, site.productURL())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := resolveLinkPreview(context.Background(), url, "user", linkPreviewOverride{})
+	if got.Title != "Page title" || site.page.Load() != 1 {
+		t.Fatalf("preview not built from the requested link: %+v (page fetched %d times)", got, site.page.Load())
+	}
+}
+
+// A LinkPreviewURL that is not in Body must fail the request on both transports,
+// before any WhatsApp lookup, instead of building a card that opens another page.
+func TestSendMessageRejectsInvalidLinkPreviewURLHTTPAndStdio(t *testing.T) {
+	s := makeTestServer(t)
+	const user, token = "link-preview-url-user", "link-preview-url-token"
+	if _, err := s.db.Exec(`INSERT INTO users (id, name, token) VALUES ($1, $2, $3)`, user, "tester", token); err != nil {
+		t.Fatal(err)
+	}
+	clientManager.SetWhatsmeowClient(user, whatsmeow.NewClient(&store.Device{}, nil))
+	t.Cleanup(func() { clientManager.DeleteWhatsmeowClient(user) })
+
+	params := map[string]interface{}{
+		"Phone": "15555550100", "Body": "Look https://example.com", "LinkPreview": true,
+		"LinkPreviewURL": "https://other.example.com/x", "token": token,
+	}
+	body, err := json.Marshal(params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/chat/send/text", strings.NewReader(string(body)))
+	req.Header.Set("token", token)
+	response := httptest.NewRecorder()
+	s.router.ServeHTTP(response, req)
+	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "LinkPreviewURL") {
+		t.Fatalf("HTTP: got %d: %s", response.Code, response.Body.String())
+	}
+
+	rpc := executeRequest(t, s, newRequest("invalid-preview-url", "chat.send.text", params).toJSON(t))
+	rpcError := assertJSONRPC20Error(t, rpc, "invalid-preview-url", float64(http.StatusBadRequest))
+	if message, _ := rpcError["message"].(string); !strings.Contains(message, "LinkPreviewURL") {
+		t.Fatalf("stdio: unexpected error %v", rpcError)
+	}
+}
